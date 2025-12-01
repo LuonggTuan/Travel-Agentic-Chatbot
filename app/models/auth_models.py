@@ -6,7 +6,7 @@ class Token(BaseModel):
     refresh_token: str | None = None
 
 class TokenData(BaseModel):
-    username: str | None = None
+    email: str | None = None
     role: str | None = None
 
 class User(BaseModel):
