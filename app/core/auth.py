@@ -29,9 +29,9 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
     to_encode.update({"exp": expire, "type": "access"})
     return encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
-def create_refresh_token(username: str):
+def create_refresh_token(email: str):
     expire = datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
-    to_encode = {"sub": username, "exp": expire, "type": "refresh"}
+    to_encode = {"sub": email, "exp": expire, "type": "refresh"}
     return encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 def verify_refresh_token(token: str):

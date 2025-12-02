@@ -11,13 +11,16 @@ from app.core.auth import (
 )
 from app.services.mongodb_crud import create_user, get_user_by_email
 import os
+from app.api.routers.milvus_upload import router as milvus_router
 
 app = FastAPI()
+
+app.include_router(milvus_router)
 
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 30))
 
 # REGISTER
-@app.post("/register", response_model=UserInDB)
+@app.post("/register", response_model=UserInDB, tags=["Authentication"])
 async def register_user(
     username: str = Body(...),
     email: str = Body(...),
@@ -31,7 +34,7 @@ async def register_user(
     return user
 
 # LOGIN
-@app.post("/token", response_model=Token)
+@app.post("/token", response_model=Token, tags=["Authentication"])
 async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
     # OAuth2 form: username = email
     user = await authenticate_user(form_data.username, form_data.password)
@@ -54,7 +57,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     }
 
 # REFRESH
-@app.post("/refresh", response_model=Token)
+@app.post("/refresh", response_model=Token, tags=["Authentication"])
 async def refresh_access_token(refresh_token: str = Body(...)):
     email = verify_refresh_token(refresh_token)
     user = await get_user_by_email(email)
@@ -73,6 +76,6 @@ async def refresh_access_token(refresh_token: str = Body(...)):
     }
 
 # USER INFO
-@app.get("/users/me/", response_model=User)
+@app.get("/users/me/", response_model=User, tags=["Authentication"])
 async def read_users_me(current_user: User = Depends(get_current_active_user)):
     return current_user

@@ -18,12 +18,6 @@ async def get_user_by_email(email: str):
     if user_dict:
         return UserInDB(**user_dict)
 
-async def get_user_by_username(username: str):
-    users = await get_user_collection()
-    user_dict = await users.find_one({"username": username})
-    if user_dict:
-        return UserInDB(**user_dict)
-
 async def get_user_by_user_id(user_id: str):
     users = await get_user_collection()
     user_dict = await users.find_one({"user_id": user_id})
