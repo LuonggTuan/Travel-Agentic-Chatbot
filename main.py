@@ -10,14 +10,43 @@ from app.core.auth import (
     get_current_active_user
 )
 from app.services.mongodb_crud import create_user, get_user_by_email
-import os
 from app.api.routers.milvus_upload import router as milvus_router
+from app.utils import logger
+from contextlib import asynccontextmanager
+from fastapi.middleware.cors import CORSMiddleware
+from app.config import settings
+from app.db.milvus import connect_milvus
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup actions
+    logger.info("Starting up the Airline Chatbot API...")
+    
+    # Connect to Milvus
+    connect_milvus()
+
+    yield
+
+    # Shutdown actions
+    logger.info("Shutting down the Airline Chatbot API...")
+
+app = FastAPI(
+    title="Airline Chatbot API",
+    description="API for Airline Chatbot",
+    version="0.0.1",
+    lifespan=lifespan
+)
+
+# CORS Middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Adjust as needed for production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.include_router(milvus_router)
-
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 30))
 
 # REGISTER
 @app.post("/register", response_model=UserInDB, tags=["Authentication"])
@@ -44,7 +73,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
             detail="Incorrect email or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         data={"sub": user.email, "role": user.role},
         expires_delta=access_token_expires
@@ -64,7 +93,7 @@ async def refresh_access_token(refresh_token: str = Body(...)):
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
 
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         data={"sub": email, "role": user.role},
         expires_delta=access_token_expires
