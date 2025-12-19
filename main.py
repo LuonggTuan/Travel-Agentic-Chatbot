@@ -9,26 +9,41 @@ from app.core.auth import (
     verify_refresh_token,
     get_current_active_user
 )
+from app.core.memory import get_redis_saver
 from app.services.mongodb_crud import create_user, get_user_by_email
 from app.api.routers.milvus_upload import router as milvus_router
+from app.api.routers.chat import router as chat_router
 from app.utils import logger
 from contextlib import asynccontextmanager
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.db.milvus import connect_milvus
+from app.agents.graph_builder import build_initialized_graph
+from langgraph.checkpoint.redis import RedisSaver
+from langgraph.store.redis import RedisStore
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup actions
     logger.info("Starting up the Airline Chatbot API...")
-    
-    # Connect to Milvus
-    connect_milvus()
+    try:
+        # Connect to Milvus
+        connect_milvus()
+        logger.info("Connect to milvus...done!!")
+        # Setup redis
+        checkpointer, redis_store = get_redis_saver()
+        logger.info("Create saver for agent...done!!!")
+        # Build graph
+        app.state.graph = build_initialized_graph(
+            checkpointer=checkpointer,
+            redis_store=redis_store
+        )
+        logger.info("Build graph...done!!!")
+    except Exception as e:
+        logger.info("Startup failed")
+        raise RuntimeError(str(e))
 
     yield
-
-    # Shutdown actions
-    logger.info("Shutting down the Airline Chatbot API...")
 
 app = FastAPI(
     title="Airline Chatbot API",
@@ -47,6 +62,7 @@ app.add_middleware(
 )
 
 app.include_router(milvus_router)
+app.include_router(chat_router)
 
 # REGISTER
 @app.post("/register", response_model=UserInDB, tags=["Authentication"])

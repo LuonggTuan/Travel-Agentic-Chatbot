@@ -26,9 +26,16 @@ class Settings(BaseSettings):
     # Milvus
     MILVUS_URI: str = os.getenv("MILVUS_URI", "")
     MILVUS_DB_NAME: str = os.getenv("MILVUS_DB_NAME", "")
+    COLLECTION_NAME: str = os.getenv("COLLECTION_NAME", "")
 
     # Logging
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
+
+    # Redis
+    REDIS_URI: str = os.getenv("REDIS_URI", "")
+
+    # SQLite
+    SQLITE_DB_PATH: str = os.getenv("SQLITE_DB_PATH", "app/db/DB_SQL/travel2.sqlite")
 
     class Config:
         env_file = ".env"
