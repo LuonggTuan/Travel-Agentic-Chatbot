@@ -27,7 +27,7 @@ def search_hotels(
         a.city,
         h.address,
         h.star_rating
-    FROM hotels h
+    FROM hotels_vietnam h
     LEFT JOIN airports_data a
         ON h.airport_code = a.airport_code
     WHERE 1 = 1
@@ -77,7 +77,7 @@ def get_hotel_details(hotel_id: int) -> dict | None:
         h.airport_code,
         a.airport_name,
         a.city
-    FROM hotels h
+    FROM hotels_vietnam h
     LEFT JOIN airports_data a
         ON h.airport_code = a.airport_code
     WHERE h.hotel_id = ?
@@ -203,7 +203,7 @@ def get_user_hotel_bookings(config: RunnableConfig) -> list[dict]:
     FROM hotel_bookings hb
     JOIN hotel_room_types rt
         ON hb.room_type_id = rt.room_type_id
-    JOIN hotels h
+    JOIN hotels_vietnam h
         ON rt.hotel_id = h.hotel_id
     WHERE hb.user_id = ?
     ORDER BY hb.checkin_date DESC

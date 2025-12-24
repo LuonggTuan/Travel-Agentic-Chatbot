@@ -205,36 +205,76 @@ def update_ticket_to_new_flight(
 
 @tool
 def cancel_ticket(ticket_no: str, *, config: RunnableConfig) -> str:
-    """Huy ve cua nguoi dung va xoa khoi co so du lieu."""
+    """Huy ticket cua nguoi dung. Neu book_ref khong con ticket nao thi xoa ca booking."""
     configuration = config.get("configurable", {})
     user_id = configuration.get("user_id", None)
     if not user_id:
         raise ValueError("Khong co ID hanh khach duoc cau hinh.")
+
     conn = sqlite3.connect(settings.SQLITE_DB_PATH)
     cursor = conn.cursor()
 
-    cursor.execute(
-        "SELECT flight_id FROM ticket_flights WHERE ticket_no = ?", (ticket_no,)
-    )
-    existing_ticket = cursor.fetchone()
-    if not existing_ticket:
+    try:
+        # Lấy book_ref và kiểm tra quyền sở hữu ticket
+        cursor.execute(
+            """
+            SELECT ticket_no, book_ref
+            FROM tickets
+            WHERE ticket_no = ? AND user_id = ?
+            """,
+            (ticket_no, user_id),
+        )
+        row = cursor.fetchone()
+        if not row:
+            raise ValueError(
+                f"Ticket {ticket_no} khong ton tai hoac khong thuoc ve hanh khach {user_id}."
+            )
+
+        book_ref = row[1]
+
+        # Xoá boarding passes (neu co)
+        cursor.execute(
+            "DELETE FROM boarding_passes WHERE ticket_no = ?",
+            (ticket_no,),
+        )
+
+        # Xoá ticket_flights
+        cursor.execute(
+            "DELETE FROM ticket_flights WHERE ticket_no = ?",
+            (ticket_no,),
+        )
+
+        # Xoá ticket
+        cursor.execute(
+            "DELETE FROM tickets WHERE ticket_no = ?",
+            (ticket_no,),
+        )
+
+        # Kiểm tra xem book_ref còn ticket nào không
+        cursor.execute(
+            "SELECT COUNT(*) FROM tickets WHERE book_ref = ?",
+            (book_ref,),
+        )
+        remaining_tickets = cursor.fetchone()[0]
+
+        # Nếu không còn ticket → xoá booking
+        if remaining_tickets == 0:
+            cursor.execute(
+                "DELETE FROM flight_bookings WHERE book_ref = ?",
+                (book_ref,),
+            )
+
+        conn.commit()
+        return (
+            f"Da huy thanh cong ticket {ticket_no}. "
+            + (
+                f"Booking {book_ref} cung da duoc huy vi khong con ticket nao."
+                if remaining_tickets == 0
+                else f"Booking {book_ref} van con cac ticket khac."
+            ))
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
         cursor.close()
         conn.close()
-        return "Khong tim thay ve hien co cho so ve da cung cap."
-
-    cursor.execute(
-        "SELECT ticket_no FROM tickets WHERE ticket_no = ? AND user_id = ?",
-        (ticket_no, user_id),
-    )
-    current_ticket = cursor.fetchone()
-    if not current_ticket:
-        cursor.close()
-        conn.close()
-        return f"Hanh khach hien tai dang dang nhap voi ID {user_id} khong phai la chu so huu ve {ticket_no}"
-
-    cursor.execute("DELETE FROM ticket_flights WHERE ticket_no = ?", (ticket_no,))
-    conn.commit()
-
-    cursor.close()
-    conn.close()
-    return "Ve da duoc huy thanh cong."

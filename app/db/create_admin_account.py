@@ -40,5 +40,28 @@ async def create_admin():
     result = await users_collection.insert_one(admin_doc)
     print(f"✅ Admin created! user_id: {user_id}")
 
+    list_user_id = [
+        "ed8d0cba-6743-4d85-b5d5-5b7613ba9823",
+        "48dc56e4-ff2f-4048-8a2d-843b356e9e7c",
+        "106d99ad-d535-42b6-ba96-e81328a349ad",
+        "746c4579-abcc-4518-9300-4be1ea86a7c0",
+        "04aa42a4-a973-4b49-9b3a-7c371301e27d"
+    ]
+
+    for i, users_id in enumerate(list_user_id):
+        hashed_password = password_hash.hash(f"user{i+1}")
+        username = f"user{i+1}"
+        user_doc = {
+            "user_id": users_id,
+            "username": username,
+            "full_name": username,
+            "email": f"user{i+1}@gmail.com",
+            "hashed_password": hashed_password,
+            "role": "user",
+            "disabled": False,
+        }
+        result = await users_collection.insert_one(user_doc)
+        print(f"✅ User created! user_id: {username}")
+
 if __name__ == "__main__":
     asyncio.run(create_admin())

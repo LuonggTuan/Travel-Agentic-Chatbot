@@ -11,7 +11,7 @@ def lookup_policy(query: str) -> str:
     """truy vấn milvus các chính sách, các câu hỏi thường gặp hãng hàng không"""
     results = query_milvus(
         collection_name=settings.COLLECTION_NAME, 
-        query_text=query
+        query=query
     )
     results = sorted(results, key=lambda x: x['id'])
     if not results:
@@ -22,12 +22,12 @@ def lookup_policy(query: str) -> str:
 def get_all_user_bookings(*, config: RunnableConfig) -> dict:
     """Lay tat ca dat phong khach san va ve may bay cua nguoi dung."""
     configuration = config.get("configurable", {})
-    user_id = configuration.get("passenger_id", None) 
+    user_id = configuration.get("user_id", None) 
     if not user_id:
         raise ValueError("Khong co ID hanh khach duoc cau hinh.")
 
-    flights = fetch_user_flight_information.invoke(config=config)
-    hotels = get_user_hotel_bookings.invoke(config=config)
+    flights = fetch_user_flight_information.invoke({}, config)
+    hotels = get_user_hotel_bookings.invoke({}, config)
 
     return {
         "flights": flights,

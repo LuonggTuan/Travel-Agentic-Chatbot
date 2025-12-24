@@ -1,5 +1,6 @@
 import logging
 import os
+import sys
 from logging.handlers import TimedRotatingFileHandler
 
 # Định nghĩa đường dẫn log
@@ -30,9 +31,13 @@ formatter = logging.Formatter(
 )
 handler.setFormatter(formatter)
 
-# Thêm handler vào logger
-logger.addHandler(handler)
+# ===== Console handler =====
+console_handler = logging.StreamHandler(sys.stdout)
+console_handler.setFormatter(formatter)
 
+# ===== handlers =====
+logger.addHandler(handler)
+logger.addHandler(console_handler)
 # Tắt propagation để tránh log trùng lặp lên logger gốc
 logger.propagate = False
 

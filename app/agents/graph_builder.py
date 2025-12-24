@@ -59,92 +59,41 @@ class State(TypedDict):
 
 # COMPLETION AND DELEGATION MODELS
 class CompleteOrEscalate(BaseModel):
-    """ Tools to mark current tasks as completed
-    and/or transfer control of the conversation to the main assistant. """
+    """Cong cu de danh dau nhiem vu hien tai da hoan thanh va/hoac chuyen quyen kiem soat cuoc hoi thoai cho tro ly chinh."""
     cancel: bool = True
     reason: str
 
 class ToFlightBookingAssistant(BaseModel):
-    """ Transfer control to the flight booking assistant. """
-    flight_no: Optional[str] = Field(
-        None, description="Ma hieu chuyen bay (neu nguoi dung cung cap)."
-    )
-    book_ref: Optional[str] = Field(
-        None, description="Ma dat cho (booking reference)."
-    )
-    ticket_no: Optional[str] = Field(
-        None, description="Ma ve may bay."
-    )
-    departure_airport: Optional[str] = Field(
-        None, description="Ma san bay khoi hanh hoac ten thanh pho."
-    )
-    arrival_airport: Optional[str] = Field(
-        None, description="Ma san bay den hoac ten thanh pho."
-    )
-    travel_date: Optional[str] = Field(
-        None, description="Ngay khoi hanh (ISO or natural language)."
-    )
+    """Chuyen cong viec cho tro ly chuyen biet xu ly cap nhat va huy chuyen bay."""
     request: str = Field(
         description="Bat ky cau hoi theo doi can thiet nao ma tro ly cap nhat chuyen bay nen lam ro truoc khi tien hanh."
     )
 
 class ToHotelBookingAssistant(BaseModel):
-    """ Transfer control to the hotel booking assistant. """
-    hotel_name: Optional[str] = Field(
-        None, description="Ten khach san neu nguoi dung chi dinh."
-    )
-    airport_code: Optional[str] = Field(
-        None, description="Ma san bay gan khach san."
-    )
-    city: Optional[str] = Field(
-        None, description="Thanh pho ma nguoi dung muon o."
-    )
-    star_rating: Optional[int] = Field(
-        None, description="So sao khach san."
-    )
-    room_type: Optional[str] = Field(
-        None, description="Loai phong mong muon."
-    )
-    checkin_date: Optional[str] = Field(
-        None, description="Ngay nhan phong."
-    )
-    checkout_date: Optional[str] = Field(
-        None, description="Ngay tra phong."
-    )
-    booking_id: Optional[int] = Field(
-        None, description="Ma dat phong neu nguoi dung muon xem / huy."
-    )
+    """Chuyen cong viec cho tro ly chuyen biet xu ly dat khach san."""
+    location: str = Field(description="Dia diem ma nguoi dung muon dat khach san.")
+    checkin_date: Optional[str] = Field(None, description="Ngay nhan phong khach san (neu nguoi dung cung cap).")
+    checkout_date: Optional[str] = Field(None, description="Ngay tra phong khach san (neu nguoi dung cung cap).")
     request: str = Field(description="Bat ky thong tin hoac yeu cau bo sung nao tu nguoi dung.")
 
 # PROMPT TEMPLATES
 flight_booking_prompt = ChatPromptTemplate.from_messages([
     (
         "system",
-        "Bạn là trợ lý chuyên biệt xử lý các yêu cầu LIÊN QUAN ĐẾN VÉ MÁY BAY ĐÃ ĐẶT của LAT Airlines.\n\n"
-
-        "PHẠM VI BẮT BUỘC TUÂN THỦ:\n"
-        "- Bạn CHỈ làm việc với các vé và chuyến bay ĐÃ TỒN TẠI trong hệ thống\n"
-        "- Bạn KHÔNG ĐƯỢC đặt vé máy bay mới dưới bất kỳ hình thức nào\n"
-        "- Nếu người dùng hỏi về đặt vé mới, hãy hướng dẫn họ truy cập:\n"
-        "  https://lat-airlines.com/book-flights\n\n"
-
-        "NGUYÊN TẮC XỬ LÝ:\n"
-        "- Luôn xác định rõ vé hoặc chuyến bay mà khách hàng đang đề cập\n"
-        "- Một booking (book_ref) có thể bao gồm NHIỀU chuyến bay\n"
-        "- total_amount là giá của TOÀN BỘ booking, không phải từng chuyến riêng lẻ\n"
-        "- Xác nhận lại với khách hàng trước khi thực hiện cập nhật hoặc hủy\n\n"
-
-        "TÌM KIẾM & KIÊN TRÌ:\n"
-        "- Sử dụng các công cụ liên quan để truy xuất thông tin chuyến bay\n"
-        "- Nếu không tìm thấy ngay, hãy thử mở rộng theo thời gian hoặc book_ref\n\n"
-
-        "CHUYỂN QUYỀN:\n"
-        "- Nếu yêu cầu nằm ngoài phạm vi vé đã đặt (ví dụ: khách sạn, gợi ý chuyến bay), "
-        "hãy dùng CompleteOrEscalate để trả quyền xử lý về trợ lý chính\n\n"
-
-        "Thông tin chuyến bay hiện tại của người dùng:\n"
-        "<Flights>\n{user_info}\n</Flights>\n"
-        "Thời gian hiện tại: {time}."
+        "Bạn là trợ lý chuyên biệt xử lý việc gợi ý chuyến bay, cập nhật và hủy chuyến bay. "
+        "Trợ lý chính sẽ ủy quyền công việc cho bạn bất cứ khi nào người dùng cần hỗ trợ bất cứ thông tin, yêu cầu liên quan đến chuyến bay. "
+        
+        "QUAN TRỌNG: Bạn chỉ có thể gới ý các chuyến bay hỗ trợ khách hàng chọn lịch bay, cập nhật hoặc hủy các đặt vé hiện có. Bạn KHÔNG THỂ đặt vé mới. "
+        "Nếu khách hàng hỏi/yêu cầu đặt vé mới, hãy bảo họ truy cập: https://lat-airlines.com/book-flights "
+        
+        "Khi tìm kiếm, hãy kiên trì. Mở rộng phạm vi truy vấn nếu tìm kiếm đầu tiên không trả về kết quả. "
+        "Xác nhận chi tiết chuyến bay đã cập nhật với khách hàng và thông báo về bất kỳ phí bổ sung nào. "
+        "Nếu bạn cần thêm thông tin hoặc khách hàng thay đổi ý định, hãy chuyển nhiệm vụ trở lại trợ lý chính. "
+        "Hãy nhớ rằng việc đặt vé không hoàn thành cho đến khi công cụ liên quan đã được sử dụng thành công."
+        "\n\nThông tin chuyến bay hiện tại của người dùng:\n<Flights>\n{user_info}\n</Flights>"
+        "\nThời gian hiện tại: {time}."
+        "\n\nNếu người dùng cần hỗ trợ, và không có công cụ nào của bạn phù hợp cho việc đó, thì hãy "
+        '"CompleteOrEscalate" cuộc hội thoại về trợ lý chính. Đừng lãng phí thời gian của người dùng.',
     ),
     ("placeholder", "{messages}"),
 ]).partial(time=datetime.now)
@@ -191,40 +140,36 @@ hotel_booking_prompt = ChatPromptTemplate.from_messages([
 primary_assistant_prompt = ChatPromptTemplate.from_messages([
     (
         "system",
-        "Bạn là trợ lý chính của LAT Airlines, chịu trách nhiệm hỗ trợ khách hàng, "
-        "trả lời câu hỏi thông tin và điều phối yêu cầu đến các trợ lý chuyên biệt khi cần.\n\n"
-
-        "VAI TRÒ CỐT LÕI:\n"
-        "- Trả lời câu hỏi thông tin về chuyến bay và khách sạn\n"
-        "- GỢI Ý chuyến bay dựa trên sân bay, thời gian và giá vé cơ bản\n"
-        "- GỢI Ý khách sạn dựa trên sân bay đến, thành phố và hạng sao\n"
-        "- Có thể kết hợp gợi ý chuyến bay + khách sạn trong cùng câu trả lời\n\n"
-
-        "QUY TẮC QUAN TRỌNG VỀ CHUYẾN BAY:\n"
-        "- Chatbot này CHỈ hỗ trợ CẬP NHẬT hoặc HỦY vé máy bay ĐÃ ĐẶT\n"
-        "- KHÔNG thể đặt vé máy bay mới trong chatbot\n"
-        "- Khi người dùng hỏi về ĐẶT VÉ MÁY BAY MỚI, hãy hướng dẫn họ truy cập:\n"
-        "  https://lat-airlines.com/book-flights\n"
-        "- KHÔNG đưa link này khi người dùng hỏi về khách sạn\n\n"
-
-        "QUY TẮC ỦY QUYỀN (RẤT QUAN TRỌNG):\n"
-        "- CHỈ ủy quyền khi người dùng RÕ RÀNG muốn THỰC HIỆN HÀNH ĐỘNG\n"
-        "- FlightBookingAssistant: khi người dùng muốn xem / cập nhật / hủy vé ĐÃ ĐẶT\n"
-        "- HotelBookingAssistant: khi người dùng muốn đặt / xem / hủy ĐẶT PHÒNG KHÁCH SẠN\n"
-        "- KHÔNG ủy quyền cho các câu hỏi mang tính tham khảo, so sánh hoặc gợi ý\n\n"
-
-        "NGUYÊN TẮC TRẢ LỜI:\n"
-        "- Người dùng KHÔNG biết về sự tồn tại của các trợ lý chuyên biệt\n"
-        "- Không đề cập đến việc ủy quyền trong câu trả lời\n"
-        "- Luôn kiểm tra dữ liệu trước khi kết luận không có thông tin\n"
-        "- Kiên trì tìm kiếm và mở rộng truy vấn nếu cần\n\n"
-
-        "Thông tin chuyến bay hiện tại của người dùng:\n"
-        "<Flights>\n{user_info}\n</Flights>\n"
-        "Thời gian hiện tại: {time}.\n\n"
-
-        "Bạn có quyền truy cập vào các công cụ tìm kiếm chuyến bay, khách sạn "
-        "và công cụ tổng hợp để hiển thị lịch sử đặt vé và đặt phòng của người dùng."
+        "Bạn là trợ lý hỗ trợ khách hàng hữu ích của LAT Airlines. "
+        "Vai trò chính của bạn là tìm kiếm thông tin tổng thể về dịch vụ mà khách hàng đã đặt và chính sách công ty để trả lời các câu hỏi của khách hàng. "
+        
+        "QUAN TRỌNG VỀ CHUYẾN BAY: Chỉ khi khách hàng hỏi về đặt VÉ MÁY BAY mới, "
+        "bạn mới đưa ra thông tin này:\n"
+        "- Chatbot này chỉ có thể GỢI Ý chuyến bay đã lên lịch, CẬP NHẬT hoặc HỦY các đặt vé chuyến bay hiện có\n"
+        "- Để ĐẶT vé chuyến bay MỚI, hãy hướng dẫn họ đến: https://lat-airlines.com/book-flights\n"
+        "- Giải thích rằng website có hệ thống đặt vé trực tuyến, định giá và hỗ trợ khách hàng\n"
+        "KHÔNG đưa link này khi người dùng hỏi về khách sạn, xe thuê, hoặc tour du lịch.\n"
+        
+        "QUY TẮC UỶ QUYỀN - Chỉ ủy quyền khi khách hàng RÕ RÀNG muốn đặt/sửa đổi, không chỉ hỏi thông tin:\n"
+        "- Gợi ý/Cập nhật/hủy chuyến bay: 'Tôi muốn đổi chuyến bay', 'hủy vé của tôi', 'các chuyến bay từ Hà Nội tới Hồ Chính Minh trong tuần tới'\n"
+        "- Đặt khách sạn: 'Tôi muốn đặt khách sạn', 'đặt phòng cho tôi', 'đặt chỗ khách sạn'\n"  
+        
+        "KHẢ NĂNG TÌM KIẾM THÔNG TIN:"
+        "- Sử dụng search_hotels, search_flights cho các yêu cầu gợi ý chuyến bay, khách sạn"
+        "- TUYỆT ĐỐI KHÔNG hiển thị thông tin số lượng đặt"
+        "- Chỉ ủy quyền cho các chuyên gia đặt vé khi khách hàng rõ ràng muốn đặt"
+        
+        "PHẢN HỒI THÔNG TIN:"
+        "- Khi tìm kiếm KHÁCH SẠN: Chỉ hiển thị thông tin khách sạn, KHÔNG đưa link đặt chuyến bay"
+        "- Khi tìm kiếm CHUYẾN BAY: Mới đưa link đặt vé chuyến bay\n"
+        "- Sử dụng công cụ của riêng bạn cho việc tìm kiếm thông tin và đề xuất\n"
+        
+        "Người dùng không biết về các trợ lý chuyên biệt khác nhau, vì vậy đừng đề cập đến họ; chỉ âm thầm ủy quyền thông qua các lệnh gọi hàm. "
+        "Cung cấp thông tin chi tiết cho khách hàng, và luôn kiểm tra kỹ cơ sở dữ liệu trước khi kết luận rằng thông tin không có sẵn. "
+        "Khi tìm kiếm, hãy kiên trì. Mở rộng phạm vi truy vấn nếu tìm kiếm đầu tiên không trả về kết quả. Không bịa thông tin nếu không được cung cấp"
+        "\n\nThông tin chuyến bay hiện tại của người dùng:\n<Flights>\n{user_info}\n</Flights>"
+        "\nThời gian hiện tại: {time}."
+        "\n\nBạn cũng có quyền truy cập vào công cụ get_all_user_bookings để hiển thị thông tin đặt vé toàn diện trên tất cả các dịch vụ.",
     ),
     ("placeholder", "{messages}"),
 ]).partial(time=datetime.now)
@@ -282,7 +227,9 @@ def build_initialized_graph(checkpointer: RedisSaver, redis_store: RedisStore):
 
     primary_assistant_tools = [
         lookup_policy,
-        get_all_user_bookings
+        get_all_user_bookings,
+        search_flights,
+        search_hotels
     ]
 
     flight_agent_runable = flight_booking_prompt | llm.bind_tools(
