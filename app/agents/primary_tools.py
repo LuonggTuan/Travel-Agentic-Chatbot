@@ -7,8 +7,8 @@ from app.agents.hotel_agent_tools import get_user_hotel_bookings
 from langchain_core.tools import tool
 
 @tool
-def lookup_policy(query: str) -> str:
-    """truy vấn milvus các chính sách, các câu hỏi thường gặp hãng hàng không"""
+def lookup_airline_policy(query: str) -> str:
+    """truy vấn milvus các chính sách, các câu hỏi thường gặp liên quan đến chuyến bay hãng hàng không"""
     results = query_milvus(
         collection_name=settings.COLLECTION_NAME, 
         query=query

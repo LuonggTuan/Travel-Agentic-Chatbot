@@ -5,6 +5,7 @@ from typing import Optional
 from langchain_core.tools import tool
 from langchain_core.runnables import RunnableConfig
 import pytz
+from app.services.milvus_service import query_milvus
 
 @tool
 def search_hotels(
@@ -63,36 +64,45 @@ def search_hotels(
     return results
 
 @tool
-def get_hotel_details(hotel_id: int) -> dict | None:
-    """Lay thong tin chi tiet khach san."""
+def get_hotel_details(hotel_id: int) -> str:
+    """
+    Truy van thong tin chi tiet, dich vu va dac trung cua khach san
+    dua tren SQL (ten + dia chi) va Milvus (ngu nghia).
+    """
+
     conn = sqlite3.connect(settings.SQLITE_DB_PATH)
     cursor = conn.cursor()
 
-    query = """
-    SELECT
-        h.hotel_id,
-        h.hotel_name,
-        h.address,
-        h.star_rating,
-        h.airport_code,
-        a.airport_name,
-        a.city
-    FROM hotels_vietnam h
-    LEFT JOIN airports_data a
-        ON h.airport_code = a.airport_code
-    WHERE h.hotel_id = ?
-    """
-    cursor.execute(query, (hotel_id,))
+    cursor.execute(
+        """
+        SELECT hotel_name
+        FROM hotels_vietnam
+        WHERE hotel_id = ?
+        """,
+        (hotel_id,)
+    )
     row = cursor.fetchone()
 
     cursor.close()
     conn.close()
 
     if not row:
-        return None
+        return "Khong tim thay khach san phu hop."
 
-    cols = [c[0] for c in cursor.description]
-    return dict(zip(cols, row))
+    hotel_name = row[0]
+
+    # --- Anchor context ---
+    query = f"{hotel_name} Thông tin cơ bản, Tiện nghi và dịch vụ, Mô tả về khách sạn"
+
+    results = query_milvus(
+        collection_name=settings.HOTEL_COLLECTION_NAME, 
+        query=query,
+        top_k=5
+    )
+    results = sorted(results, key=lambda x: x['id'])
+    if not results:
+        return "No relevant policy found."
+    return "\n\n".join([f"{res['content']}" for res in results])
 
 @tool
 def list_hotel_room_types(hotel_id: int) -> list[dict]:
@@ -119,6 +129,117 @@ def list_hotel_room_types(hotel_id: int) -> list[dict]:
     cursor.close()
     conn.close()
     return results
+
+@tool
+def list_available_room_types(
+    hotel_id: int,
+    checkin_date: date,
+    checkout_date: date,
+) -> list[dict]:
+    """
+    Lay danh sach cac loai phong con trong cua khach san
+    trong khoang thoi gian checkin - checkout.
+    """
+    if checkout_date <= checkin_date:
+        raise ValueError("Ngay checkout phai sau ngay checkin.")
+
+    conn = sqlite3.connect(settings.SQLITE_DB_PATH)
+    cursor = conn.cursor()
+
+    query = """
+    SELECT
+        rt.room_type_id,
+        rt.room_name,
+        rt.base_price,
+        rt.max_guests,
+        rt.total_rooms,
+        COUNT(hb.booking_id) AS booked_rooms,
+        (rt.total_rooms - COUNT(hb.booking_id)) AS available_rooms
+    FROM hotel_room_types rt
+    LEFT JOIN hotel_bookings hb
+        ON rt.room_type_id = hb.room_type_id
+        AND hb.checkin_date < ?
+        AND hb.checkout_date > ?
+    WHERE rt.hotel_id = ?
+    GROUP BY rt.room_type_id
+    HAVING available_rooms > 0
+    ORDER BY rt.base_price ASC
+    """
+
+    cursor.execute(
+        query,
+        (checkout_date, checkin_date, hotel_id)
+    )
+
+    rows = cursor.fetchall()
+    cols = [c[0] for c in cursor.description]
+    results = [dict(zip(cols, row)) for row in rows]
+
+    cursor.close()
+    conn.close()
+    return results
+
+
+@tool
+def check_room_type_availability(
+    room_type_id: int,
+    checkin_date: date,
+    checkout_date: date,
+) -> dict:
+    """
+    Kiem tra xem mot loai phong cu the co con phong
+    trong khoang thoi gian yeu cau hay khong.
+    """
+    if checkout_date <= checkin_date:
+        raise ValueError("Ngay checkout phai sau ngay checkin.")
+
+    conn = sqlite3.connect(settings.SQLITE_DB_PATH)
+    cursor = conn.cursor()
+
+    # Lay tong so phong cua loai phong
+    cursor.execute(
+        """
+        SELECT total_rooms
+        FROM hotel_room_types
+        WHERE room_type_id = ?
+        """,
+        (room_type_id,)
+    )
+    row = cursor.fetchone()
+    if not row:
+        cursor.close()
+        conn.close()
+        raise ValueError("Loai phong khong ton tai.")
+
+    total_rooms = row[0]
+
+    # Dem so booking trung lich
+    cursor.execute(
+        """
+        SELECT COUNT(*)
+        FROM hotel_bookings
+        WHERE room_type_id = ?
+          AND checkin_date < ?
+          AND checkout_date > ?
+        """,
+        (room_type_id, checkout_date, checkin_date)
+    )
+    booked_rooms = cursor.fetchone()[0]
+
+    available_rooms = total_rooms - booked_rooms
+    is_available = available_rooms > 0
+
+    cursor.close()
+    conn.close()
+
+    return {
+        "room_type_id": room_type_id,
+        "is_available": is_available,
+        "total_rooms": total_rooms,
+        "booked_rooms": booked_rooms,
+        "available_rooms": available_rooms,
+    }
+
 
 @tool
 def create_hotel_booking(

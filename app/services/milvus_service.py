@@ -9,9 +9,9 @@ from app.llms.embedding_models import get_embedding_model
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from app.utils import logger
 
-def normalize_docx_to_chunks(file_bytes: bytes, file_name: str) -> List[Dict]:
+def normalize_docx_to_chunks(file_bytes: bytes, suffix: str) -> List[Dict]:
     # Save bytes to a temporary file
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as tmp:
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
         tmp.write(file_bytes)
         tmp_path = tmp.name
 
@@ -86,7 +86,7 @@ def normalize_docx_to_chunks(file_bytes: bytes, file_name: str) -> List[Dict]:
             })
     return final_data_list
 
-def upload_chunks_to_milvus(data_list: List[Dict], collection_name: str):
+def upload_chunks_to_milvus(data_list: List[Dict], collection_name: str, file_name: str):
     check_collection_milvus(collection_name)
 
     embedding_model = get_embedding_model()
@@ -109,8 +109,10 @@ def upload_chunks_to_milvus(data_list: List[Dict], collection_name: str):
         contents.append(item.get("content", ""))
         all_vectors.append(vec)
 
+    list_file_name = [file_name] * len(ids)
     result = collection.insert([
         ids,
+        list_file_name,
         headings,
         types,
         contents,
@@ -122,32 +124,45 @@ def upload_chunks_to_milvus(data_list: List[Dict], collection_name: str):
     return result
 
 def query_milvus(collection_name: str, query: str, top_k: int = 3):
-    collection = Collection(name=collection_name)
-    collection.load()
+    try:
+        collection = Collection(name=collection_name)
+        collection.load()
 
-    embedding_model = get_embedding_model()
-    query_vector = embedding_model.embed_query(query)
+        embedding_model = get_embedding_model()
+        query_vector = embedding_model.embed_query(query)
 
-    search_params = {
-        "metric_type": "COSINE"
-    }
+        search_params = {
+                "metric_type": "COSINE",
+                "params": {"nprobe": 10}
+            }
 
-    results = collection.search(
-            data=[query_vector],
-            anns_field="vector",
-            param=search_params,
-            limit=top_k,
-            output_fields=["id", "heading", "type", "content"]
-        )
+        results = collection.search(
+                data=[query_vector],
+                anns_field="vector",
+                param=search_params,
+                limit=top_k,
+                output_fields=["id", "file_name", "heading", "type", "content"]
+            )
 
-    hits = []
-    for hit in results[0]:
-        hits.append({
-            "id": hit.id,
-            "score": hit.distance,
-            "heading": hit.entity.get("heading"),
-            "type": hit.entity.get("type"),
-            "content": hit.entity.get("content"),
-        })
+        hits = []
+        for hit in results[0]:
+            hits.append({
+                "id": hit.id,
+                "file_name": hit.entity.get("file_name"),
+                "score": hit.distance,
+                "heading": hit.entity.get("heading"),
+                "type": hit.entity.get("type"),
+                "content": hit.entity.get("content"),
+            })
 
-    return hits
+        return hits
+
+    except Exception as e:
+        logger.error(f"Milvus query error: {e}")
+        return []
+
+    finally:
+        try:
+            collection.release()  # tránh leak memory
+        except:
+            pass

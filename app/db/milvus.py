@@ -22,6 +22,7 @@ def check_collection_milvus(collection_name: str):
         if not utility.has_collection(collection_name):
             fields = [
                 FieldSchema(name="id", dtype=DataType.INT64, is_primary=True),
+                FieldSchema(name="file_name", dtype=DataType.VARCHAR, max_length=1024),
                 FieldSchema(name="heading", dtype=DataType.VARCHAR, max_length=1024),
                 FieldSchema(name="type", dtype=DataType.VARCHAR, max_length=128),
                 FieldSchema(name="content", dtype=DataType.VARCHAR, max_length=40000),
@@ -32,8 +33,9 @@ def check_collection_milvus(collection_name: str):
             collection = Collection(name=collection_name, schema=schema)
 
             index_params = {
-                "index_type": "FLAT",
-                "metric_type": "COSINE"
+                "index_type": "IVF_FLAT",
+                "metric_type": "COSINE",
+                "params": {"nlist": 64}
             }
 
             collection.create_index(field_name="vector", index_params=index_params)

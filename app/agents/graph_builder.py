@@ -26,11 +26,13 @@ from app.agents.hotel_agent_tools import (
     get_hotel_details,
     get_user_hotel_bookings,
     list_hotel_room_types,
+    list_available_room_types,
+    check_room_type_availability,
     create_hotel_booking,
     cancel_hotel_booking
 )
 from app.agents.primary_tools import (
-    lookup_policy,
+    lookup_airline_policy,
     get_all_user_bookings
 )
 
@@ -103,39 +105,52 @@ hotel_booking_prompt = ChatPromptTemplate.from_messages([
         "system",
         "Bạn là trợ lý chuyên biệt xử lý các yêu cầu LIÊN QUAN ĐẾN KHÁCH SẠN của LAT Airlines.\n\n"
 
-        "KHẢ NĂNG CỦA BẠN:\n"
-        "- Hiển thị thông tin khách sạn theo sân bay hoặc thành phố\n"
-        "- Hiển thị các loại phòng của khách sạn\n"
-        "- Tạo, xem và hủy đặt phòng khách sạn\n\n"
+        "PHẠM VI HỖ TRỢ:\n"
+        "- Tìm kiếm và giới thiệu khách sạn theo sân bay hoặc thành phố\n"
+        "- Cung cấp thông tin chi tiết về khách sạn và các loại phòng\n"
+        "- Hỗ trợ đặt phòng, xem lịch sử đặt phòng và hủy đặt phòng khách sạn\n\n"
 
-        "GIỚI HẠN HỆ THỐNG (RẤT QUAN TRỌNG):\n"
-        "- Hệ thống KHÔNG theo dõi số phòng trống theo ngày\n"
-        "- KHÔNG hiển thị số lượng phòng còn lại\n"
-        "- KHÔNG suy đoán tình trạng thực tế của khách sạn\n\n"
+        "NGUYÊN TẮC BẮT BUỘC:\n"
+        "- Hệ thống KHÔNG hiển thị số lượng phòng trống hoặc dữ liệu nội bộ\n"
+        "- KHÔNG suy đoán tình trạng thực tế của khách sạn\n"
+        "- Chỉ kết luận ở mức logic: 'Có thể đặt' hoặc 'Không thể đặt'\n\n"
 
-        "HIỂN THỊ TÌNH TRẠNG ĐẶT PHÒNG:\n"
-        "- Chỉ hiển thị ở mức logic: 'Có thể đặt' hoặc 'Không thể đặt'\n"
-        "- Tuyệt đối KHÔNG hiển thị số lượng phòng hoặc dữ liệu nội bộ\n\n"
-
-        "QUY TRÌNH ĐẶT PHÒNG BẮT BUỘC:\n"
-        "1. Thu thập đầy đủ: địa điểm (hoặc khách sạn), ngày nhận phòng, ngày trả phòng\n"
-        "2. Hiển thị danh sách khách sạn hoặc loại phòng phù hợp\n"
-        "3. Chỉ gọi công cụ đặt phòng khi khách hàng xác nhận rõ ràng\n\n"
+        "QUY TRÌNH XỬ LÝ CHUẨN:\n"
+        "1. Khi khách chưa xác định khách sạn:\n"
+        "   - Gợi ý danh sách khách sạn phù hợp theo địa điểm yêu cầu\n\n"
+        "2. Khi khách đã chọn khách sạn:\n"
+        "   - Nếu chưa có ngày nhận phòng hoặc trả phòng, yêu cầu khách cung cấp\n"
+        "   - Khi đã có ngày, xác định những loại phòng phù hợp với khoảng thời gian đó\n\n"
+        "3. Khi khách chọn một loại phòng cụ thể:\n"
+        "   - BẮT BUỘC phải kiểm tra khả năng đặt của loại phòng trong khoảng thời gian yêu cầu\n"
+        "   - Chỉ tiếp tục khi kết quả cho phép đặt\n\n"
+        "4. Chỉ tiến hành đặt phòng khi:\n"
+        "   - Khách xác nhận rõ ràng mong muốn đặt\n"
+        "   - Thông tin ngày nhận phòng và trả phòng hợp lệ\n"
+        "   - Loại phòng được xác nhận là có thể đặt\n\n"
+        "5. Sau khi hoàn tất đặt phòng:\n"
+        "   - Thông báo kết quả và tóm tắt thông tin cho khách\n\n"
+        "6. Khi khách yêu cầu xem hoặc hủy đặt phòng:\n"
+        "   - Hiển thị danh sách đặt phòng hiện có\n"
+        "   - Chỉ hủy khi khách xác nhận rõ ràng\n\n"
 
         "TÍNH GIÁ:\n"
-        "- Giá phòng dựa trên base_price của loại phòng\n"
-        "- Tổng tiền = base_price × số đêm lưu trú\n\n"
+        "- Giá phòng được tính theo giá cơ bản của loại phòng\n"
+        "- Tổng chi phí = giá mỗi đêm × số đêm lưu trú\n"
+        "- Thông tin giá chỉ mang tính tham khảo\n\n"
 
         "CHUYỂN QUYỀN:\n"
-        "- Nếu người dùng chỉ hỏi thông tin tham khảo hoặc thay đổi ý định, "
-        "hãy dùng CompleteOrEscalate để trả về trợ lý chính\n\n"
+        "- Nếu yêu cầu không liên quan đến khách sạn\n"
+        "- Nếu khách chỉ hỏi thông tin chung hoặc chưa có ý định đặt phòng\n"
+        "- Nếu không thể tiếp tục quy trình do thiếu thông tin\n"
+        "→ Hãy chuyển lại cho trợ lý chính để hỗ trợ tiếp\n\n"
 
         "Thời gian hiện tại: {time}.\n\n"
-        "Nếu không có công cụ nào phù hợp với yêu cầu của người dùng, "
-        "hãy dùng CompleteOrEscalate để tránh lãng phí thời gian của khách hàng."
+        "Luôn ưu tiên trả lời rõ ràng, chính xác và đúng quy trình."
     ),
     ("placeholder", "{messages}"),
 ]).partial(time=datetime.now)
+
 
 primary_assistant_prompt = ChatPromptTemplate.from_messages([
     (
@@ -152,7 +167,7 @@ primary_assistant_prompt = ChatPromptTemplate.from_messages([
         
         "QUY TẮC UỶ QUYỀN - Chỉ ủy quyền khi khách hàng RÕ RÀNG muốn đặt/sửa đổi, không chỉ hỏi thông tin:\n"
         "- Gợi ý/Cập nhật/hủy chuyến bay: 'Tôi muốn đổi chuyến bay', 'hủy vé của tôi', 'các chuyến bay từ Hà Nội tới Hồ Chính Minh trong tuần tới'\n"
-        "- Đặt khách sạn: 'Tôi muốn đặt khách sạn', 'đặt phòng cho tôi', 'đặt chỗ khách sạn'\n"  
+        "- Đặt/ gợi ý khách sạn: 'Tôi muốn đặt khách sạn', 'đặt phòng cho tôi', 'đặt chỗ khách sạn', 'thông tin chi tiết khách sạn'\n"  
         
         "KHẢ NĂNG TÌM KIẾM THÔNG TIN:"
         "- Sử dụng search_hotels, search_flights cho các yêu cầu gợi ý chuyến bay, khách sạn"
@@ -221,15 +236,16 @@ def build_initialized_graph(checkpointer: RedisSaver, redis_store: RedisStore):
     flight_sensitive_tools = [update_ticket_to_new_flight, cancel_ticket]
     flight_tools = flight_safe_tools + flight_sensitive_tools
 
-    hotel_safe_tools = [search_hotels, get_hotel_details, list_hotel_room_types, get_user_hotel_bookings]
+    hotel_safe_tools = [search_hotels, get_hotel_details, list_hotel_room_types, get_user_hotel_bookings, list_available_room_types, check_room_type_availability]
     hotel_sensitive_tools = [create_hotel_booking, cancel_hotel_booking]
     hotel_tools = hotel_safe_tools + hotel_sensitive_tools
 
     primary_assistant_tools = [
-        lookup_policy,
+        lookup_airline_policy,
         get_all_user_bookings,
         search_flights,
-        search_hotels
+        search_hotels,
+        get_hotel_details,
     ]
 
     flight_agent_runable = flight_booking_prompt | llm.bind_tools(

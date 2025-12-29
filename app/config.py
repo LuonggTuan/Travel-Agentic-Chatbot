@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     MILVUS_URI: str = os.getenv("MILVUS_URI", "")
     MILVUS_DB_NAME: str = os.getenv("MILVUS_DB_NAME", "")
     COLLECTION_NAME: str = os.getenv("COLLECTION_NAME", "")
+    HOTEL_COLLECTION_NAME: str = os.getenv("HOTEL_COLLECTION_NAME", "")
 
     # Logging
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
