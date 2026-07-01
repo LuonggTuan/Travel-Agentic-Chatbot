@@ -10,7 +10,7 @@ from langgraph.graph.message import AnyMessage, add_messages
 from langgraph.checkpoint.redis import RedisSaver
 from langgraph.store.redis import RedisStore
 from pydantic import BaseModel, Field
-from app.llms.llm_models import get_openai_llm_model
+from app.llms.llm_models import get_openai_llm_model, get_ollama_llm_model
 from app.config import settings
 from langgraph.checkpoint.redis import RedisSaver
 from langgraph.store.redis import RedisStore
@@ -229,7 +229,7 @@ class Assistant:
 # GRAPH BUILDER
 def build_initialized_graph(checkpointer: RedisSaver, redis_store: RedisStore):
     # Get LLMs
-    llm = get_openai_llm_model()
+    llm = get_ollama_llm_model() if settings.USE_LOCAL_LLM else get_openai_llm_model()
 
     # Tool groups
     flight_safe_tools = [search_flights]

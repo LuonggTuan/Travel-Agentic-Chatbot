@@ -18,6 +18,7 @@ def connect_milvus():
         logger.error(f"Failed to connect to Milvus: {e}")
 
 def check_collection_milvus(collection_name: str):
+    Dimension = settings.DIM_MULTILINGUAL_E5_BASE if settings.USE_LOCAL_EMBEDDING else settings.DIM_OPENAI
     try:
         if not utility.has_collection(collection_name):
             fields = [
@@ -26,7 +27,7 @@ def check_collection_milvus(collection_name: str):
                 FieldSchema(name="heading", dtype=DataType.VARCHAR, max_length=1024),
                 FieldSchema(name="type", dtype=DataType.VARCHAR, max_length=128),
                 FieldSchema(name="content", dtype=DataType.VARCHAR, max_length=40000),
-                FieldSchema(name="vector", dtype=DataType.FLOAT_VECTOR, dim=1536)
+                FieldSchema(name="vector", dtype=DataType.FLOAT_VECTOR, dim=Dimension)
             ]
 
             schema = CollectionSchema(fields = fields, description="Document chunks collection")

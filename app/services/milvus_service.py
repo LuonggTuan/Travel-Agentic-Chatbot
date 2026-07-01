@@ -6,6 +6,8 @@ import tempfile
 from typing import List, Dict
 from app.db.milvus import connect_milvus, check_collection_milvus
 from app.llms.embedding_models import get_embedding_model
+from app.Local_Embedding_models.embedding_models import get_multilingual_embedding_model
+from app.config import settings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from app.utils import logger
 
@@ -89,7 +91,7 @@ def normalize_docx_to_chunks(file_bytes: bytes, suffix: str) -> List[Dict]:
 def upload_chunks_to_milvus(data_list: List[Dict], collection_name: str, file_name: str):
     check_collection_milvus(collection_name)
 
-    embedding_model = get_embedding_model()
+    embedding_model = get_multilingual_embedding_model() if settings.USE_LOCAL_EMBEDDING else get_embedding_model()
     collection = Collection(name=collection_name)
     collection.load()
 
@@ -128,7 +130,7 @@ def query_milvus(collection_name: str, query: str, top_k: int = 3):
         collection = Collection(name=collection_name)
         collection.load()
 
-        embedding_model = get_embedding_model()
+        embedding_model = get_multilingual_embedding_model() if settings.USE_LOCAL_EMBEDDING else get_embedding_model()
         query_vector = embedding_model.embed_query(query)
 
         search_params = {

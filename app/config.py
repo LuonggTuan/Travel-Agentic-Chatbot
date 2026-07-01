@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     LLM_MODEL: str = os.getenv("LLM_MODEL", "gpt-4o-mini")
     EMBEDDING_MODEL: str = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
     TEMPERATURE: float = float(os.getenv("TEMPERATURE", "0.1"))
-    EMBEDDING_DIMENSION: int = int(os.getenv("EMBEDDING_DIMENSION", "1536"))
+    DIM_OPENAI: int = int(os.getenv("DIM_OPENAI", "1536"))
 
     # Milvus
     MILVUS_URI: str = os.getenv("MILVUS_URI", "")
@@ -38,6 +38,15 @@ class Settings(BaseSettings):
     # SQLite
     SQLITE_DB_PATH: str = os.getenv("SQLITE_DB_PATH", "app/db/DB_SQL/travel2.sqlite")
 
+    # Ollama / LLaMA.cpp
+    LLAMA_CPP_BASE_URL: str = os.getenv("LLAMA_CPP_BASE_URL", "http://localhost:11436/v1")
+    LLAMA_CPP_MODEL: str = os.getenv("LLAMA_CPP_MODEL", "qwen2.5-3b")
+
+    # Use local LLM or Embedding model
+    USE_LOCAL_LLM: bool = os.getenv("USE_LOCAL_LLM", "False")
+    USE_LOCAL_EMBEDDING: bool = os.getenv("USE_LOCAL_EMBEDDING", "False")
+    DIM_MULTILINGUAL_E5_BASE: int = int(os.getenv("DIM_MULTILINGUAL_E5_BASE", "768"))
+    
     class Config:
         env_file = ".env"
         case_sensitive = True
@@ -45,3 +54,5 @@ class Settings(BaseSettings):
 
 # Global settings instance
 settings = Settings()
+
+print(settings.dict())  # Print all settings for debugging purposes

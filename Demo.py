@@ -77,7 +77,7 @@ class State(TypedDict):
 # ===========================
 
 @tool
-def lookup_policy(query: str) -> str:
+def lookup_airline_policy(query: str) -> str:
     """Consult the company policies to check whether certain options are permitted."""
     docs = retrieve.invoke(query)
     return "\n\n".join([doc.page_content for doc in docs])
@@ -872,7 +872,7 @@ book_excursion_tools = book_excursion_safe_tools + book_excursion_sensitive_tool
 
 primary_assistant_tools = [
     search_flights,
-    lookup_policy,
+    lookup_airline_policy,
     get_all_user_bookings,
 ]
 
